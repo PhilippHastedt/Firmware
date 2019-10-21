@@ -87,7 +87,6 @@
 #include <DevMgr.hpp>
 
 #include "parameters.h"
-#include "rc_update.h"
 #include "voted_sensors_update.h"
 
 #include "vehicle_acceleration/VehicleAcceleration.hpp"
@@ -166,7 +165,6 @@ private:
 	Parameters		_parameters{};			/**< local copies of interesting parameters */
 	ParameterHandles	_parameter_handles{};		/**< handles for interesting parameters */
 
-	RCUpdate		_rc_update;
 	VotedSensorsUpdate _voted_sensors_update;
 
 
@@ -211,7 +209,6 @@ Sensors::Sensors(bool hil_enabled) :
 	ModuleParams(nullptr),
 	_hil_enabled(hil_enabled),
 	_loop_perf(perf_alloc(PC_ELAPSED, "sensors")),
-	_rc_update(_parameters),
 	_voted_sensors_update(_parameters, hil_enabled)
 {
 	initialize_parameter_handles(_parameter_handles);
@@ -237,16 +234,11 @@ Sensors::parameters_update()
 	}
 
 	/* read the parameter values into _parameters */
-	int ret = update_parameters(_parameter_handles, _parameters);
+	update_parameters(_parameter_handles, _parameters);
 
-	if (ret) {
-		return ret;
-	}
-
-	_rc_update.update_rc_functions();
 	_voted_sensors_update.parametersUpdate();
 
-	return ret;
+	return PX4_OK;
 }
 
 int
@@ -438,8 +430,6 @@ Sensors::run()
 
 	diff_pres_poll(airdata);
 
-	_rc_update.rc_parameter_map_poll(_parameter_handles, true /* forced */);
-
 	/* wakeup source */
 	px4_pollfd_struct_t poll_fds = {};
 	poll_fds.events = POLLIN;
@@ -532,13 +522,7 @@ Sensors::run()
 
 			/* check parameters for updates */
 			parameter_update_poll();
-
-			/* check rc parameter map for updates */
-			_rc_update.rc_parameter_map_poll(_parameter_handles);
 		}
-
-		/* Look for new r/c input data */
-		_rc_update.rc_poll(_parameter_handles);
 
 		perf_end(_loop_perf);
 	}
@@ -599,9 +583,6 @@ The provided functionality includes:
   If there are multiple of the same type, do voting and failover handling.
   Then apply the board rotation and temperature calibration (if enabled). And finally publish the data; one of the
   topics is `sensor_combined`, used by many parts of the system.
-- Do RC channel mapping: read the raw input channels (`input_rc`), then apply the calibration, map the RC channels
-  to the configured channels & mode switches, low-pass filter, and then publish as `rc_channels` and
-  `manual_control_setpoint`.
 - Make sure the sensor drivers get the updated calibration parameters (scale & offset) when the parameters change or
   on startup. The sensor drivers use the ioctl interface for parameter updates. For this to work properly, the
   sensor drivers must already be running when `sensors` is started.
