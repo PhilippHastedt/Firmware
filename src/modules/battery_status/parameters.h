@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2018 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2016 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,50 +33,52 @@
 
 #pragma once
 
-#include <drivers/device/device.h>
-#include <drivers/drv_hrt.h>
-#include <drivers/drv_mixer.h>
-#include <drivers/drv_pwm_output.h>
-#include <lib/mixer/mixer.h>
-#include <lib/mixer_module/mixer_module.hpp>
+/**
+ * @file parameters.h
+ *
+ * defines the list of parameters that are used within the sensors module
+ *
+ * @author Beat Kueng <beat-kueng@gmx.net>
+ */
 #include <px4_config.h>
-#include <px4_module.h>
-#include <px4_tasks.h>
-#include <px4_time.h>
-#include <uORB/topics/parameter_update.h>
+#include <drivers/drv_rc_input.h>
 
-class PWMSim : public cdev::CDev, public ModuleBase<PWMSim>, public OutputModuleInterface
+#include <parameters/param.h>
+#include <mathlib/mathlib.h>
+
+namespace battery_status
 {
-public:
-	PWMSim(bool hil_mode_enabled);
 
-	/** @see ModuleBase */
-	static int task_spawn(int argc, char *argv[]);
-
-	/** @see ModuleBase */
-	static int custom_command(int argc, char *argv[]);
-
-	/** @see ModuleBase */
-	static int print_usage(const char *reason = nullptr);
-
-	/** @see ModuleBase::print_status() */
-	int print_status() override;
-
-	void Run() override;
-
-	int ioctl(device::file_t *filp, int cmd, unsigned long arg) override;
-
-	bool updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
-			   unsigned num_outputs, unsigned num_control_groups_updated) override;
-
-private:
-	static constexpr uint16_t PWM_SIM_DISARMED_MAGIC = 900;
-	static constexpr uint16_t PWM_SIM_FAILSAFE_MAGIC = 600;
-	static constexpr uint16_t PWM_SIM_PWM_MIN_MAGIC = 1000;
-	static constexpr uint16_t PWM_SIM_PWM_MAX_MAGIC = 2000;
-
-	MixingOutput _mixing_output{MAX_ACTUATORS, *this, MixingOutput::SchedulingPolicy::Auto, false, false};
-	uORB::Subscription _parameter_update_sub{ORB_ID(parameter_update)};
-
+struct Parameters {
+	float battery_voltage_scaling;
+	float battery_current_scaling;
+	float battery_current_offset;
+	float battery_v_div;
+	float battery_a_per_v;
+	int32_t battery_source;
+	int32_t battery_adc_channel;
 };
 
+struct ParameterHandles {
+	param_t battery_voltage_scaling;
+	param_t battery_current_scaling;
+	param_t battery_current_offset;
+	param_t battery_v_div;
+	param_t battery_a_per_v;
+	param_t battery_source;
+	param_t battery_adc_channel;
+};
+
+/**
+ * initialize ParameterHandles struct
+ */
+void initialize_parameter_handles(ParameterHandles &parameter_handles);
+
+
+/**
+ * Read out the parameters using the handles into the parameters struct.
+ * @return 0 on success, <0 on error
+ */
+int update_parameters(const ParameterHandles &parameter_handles, Parameters &parameters);
+
+} /* namespace sensors */
